@@ -531,6 +531,24 @@ html,body{background:var(--bg);font-family:'Inter',sans-serif;color:var(--text);
   <div class="props-wrap">
     <div class="section-eyebrow">Portafolio exclusivo</div>
     <div class="section-title">Selección premium</div>
+
+    <div style="background:var(--bg2);border:1.5px dashed var(--navy-bd);border-radius:10px;padding:14px;margin-bottom:16px;">
+      <div style="font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.5px;color:var(--navy);margin-bottom:6px;display:flex;align-items:center;gap:6px;">
+        <i class="fa-solid fa-file-excel" style="color:#16A34A;font-size:14px;"></i>
+        Cargar propiedades desde Excel o CSV
+      </div>
+      <div style="font-size:11px;color:var(--text3);margin-bottom:10px;line-height:1.5;">
+        Columnas requeridas en orden:<br/>
+        <span style="background:var(--navy-lt);color:var(--navy);padding:2px 6px;border-radius:4px;font-size:10px;font-weight:600;display:inline-block;margin-top:4px;">Nombre · Ubicacion · Precio · Tipo · Habitaciones · Banos · Area</span>
+      </div>
+      <label style="display:flex;align-items:center;justify-content:center;gap:8px;padding:11px;border-radius:8px;background:var(--navy-lt);color:var(--navy);font-size:12px;font-weight:600;cursor:pointer;border:1.5px solid var(--navy-bd);">
+        <i class="fa-solid fa-upload"></i>
+        Seleccionar archivo (.xlsx o .csv)
+        <input type="file" accept=".csv,.xlsx,.xls" style="display:none;" onchange="cargarArchivoProps(this)"/>
+      </label>
+      <div id="props-carga-msg" style="margin-top:8px;font-size:11px;text-align:center;color:var(--text3);"></div>
+    </div>
+
     <div class="props-grid" id="props-grid"></div>
   </div>
 </div>
@@ -584,16 +602,16 @@ html,body{background:var(--bg);font-family:'Inter',sans-serif;color:var(--text);
    ╚══════════════════════════════════════════════════════════════════╝ */
 
 // CONFIGURACIÓN DE MARCA - Cambia el texto entre comillas por el nombre de tu negocio
-const NOMBRE_INMOBILIARIA = "KRONOS | Inmobiliaria Boutique";
+const NOMBRE_INMOBILIARIA = "INMOBILIARIAS SEGURAS";
 
 // ─── NÚMERO DE WHATSAPP DEL AGENTE ──────────────────────────────────
 // Escribe tu número SIN el signo "+" y SIN espacios. Incluye código de país.
 // Ejemplo Colombia: 573001234567  |  México: 5215512345678
-const TELEFONO_AGENTE_WA = "573001234567";
+const TELEFONO_AGENTE_WA = "573144862050";
 
 // ─── NÚMERO DE SMS DEL AGENTE ────────────────────────────────────────
 // Escribe tu número CON el signo "+" al inicio y sin espacios.
-const TELEFONO_AGENTE_SMS = "+573001234567";
+const TELEFONO_AGENTE_SMS = "+573144862050";
 
 // ─── SÍMBOLO DE MONEDA ───────────────────────────────────────────────
 // Cambia este símbolo según tu país: "$", "USD $", "€", "MXN $", "COP $"
@@ -619,6 +637,8 @@ document.addEventListener('DOMContentLoaded', () => {
   // Inserta el nombre de marca centralizado, dividiendo por "|" para el separador dorado
   const brandEl = document.getElementById('brand-name-display');
   const parts = NOMBRE_INMOBILIARIA.split('|').map(s => s.trim());
+  // Siempre forzamos escritura horizontal para evitar texto vertical
+  brandEl.style.cssText = 'writing-mode:horizontal-tb!important;text-orientation:mixed!important;direction:ltr!important;white-space:nowrap!important;display:block!important;text-align:center!important;';
   brandEl.innerHTML = parts.length > 1
     ? `${parts[0].toUpperCase()}<span class="pipe">|</span>${parts[1].toUpperCase()}`
     : NOMBRE_INMOBILIARIA.toUpperCase();
@@ -948,3 +968,219 @@ function showToast(msg,color='#16A34A'){
 </script>
 </body>
 </html>
+<script>
+/* ── CARGADOR DE PROPIEDADES DESDE CSV/EXCEL (formato Inmobiliarias Seguras) ── */
+function cargarArchivoProps(input) {
+  const file = input.files[0];
+  if (!file) return;
+  const msg = document.getElementById('props-carga-msg');
+  msg.style.color = 'var(--text3)';
+  msg.textContent = '⏳ Procesando archivo...';
+  const reader = new FileReader();
+
+  if (file.name.endsWith('.csv')) {
+    reader.onload = function(e) {
+      try {
+        const text = e.target.result.replace(/^\uFEFF/, ''); // quitar BOM
+        const lineas = text.split('\n').filter(l => l.trim());
+        // Detectar separador
+        const sep = lineas[0].includes(';') ? ';' : ',';
+        const encabezado = lineas[0].split(sep).map(h => h.trim().toLowerCase());
+        const props = lineas.slice(1).map(l => {
+          const c = parsearCSVLinea(l, sep);
+          return mapearColumnas(c, encabezado);
+        }).filter(p => p && p.name);
+        renderPropsPersonalizadas(props, file.name);
+      } catch(err) {
+        msg.style.color = 'var(--red)';
+        msg.textContent = '❌ Error al leer el CSV: ' + err.message;
+      }
+    };
+    reader.readAsText(file, 'UTF-8');
+
+  } else if (file.name.match(/\.xlsx?$/i)) {
+    reader.onload = function(e) {
+      const cargar = function() {
+        try {
+          const data = new Uint8Array(e.target.result);
+          const wb   = XLSX.read(data, { type: 'array' });
+          const ws   = wb.Sheets[wb.SheetNames[0]];
+          const rows = XLSX.utils.sheet_to_json(ws, { header: 1 });
+          const encabezado = rows[0].map(h => String(h).trim().toLowerCase());
+          const props = rows.slice(1).map(r => mapearColumnas(r, encabezado)).filter(p => p && p.name);
+          renderPropsPersonalizadas(props, file.name);
+        } catch(err) {
+          document.getElementById('props-carga-msg').style.color = 'var(--red)';
+          document.getElementById('props-carga-msg').textContent = '❌ Error al leer Excel: ' + err.message;
+        }
+      };
+      if (!window.XLSX) {
+        const s = document.createElement('script');
+        s.src = 'https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js';
+        s.onload = cargar;
+        document.head.appendChild(s);
+      } else { cargar(); }
+    };
+    reader.readAsArrayBuffer(file);
+  } else {
+    msg.style.color = 'var(--red)';
+    msg.textContent = '❌ Formato no soportado. Usa .csv o .xlsx';
+  }
+}
+
+// Parsear una línea CSV respetando campos entre comillas
+function parsearCSVLinea(linea, sep) {
+  const resultado = [];
+  let campo = '', dentro = false;
+  for (let i = 0; i < linea.length; i++) {
+    const c = linea[i];
+    if (c === '"') { dentro = !dentro; }
+    else if (c === sep && !dentro) { resultado.push(campo.trim()); campo = ''; }
+    else { campo += c; }
+  }
+  resultado.push(campo.trim());
+  return resultado;
+}
+
+// Mapear columnas del CSV real al formato de la app
+function mapearColumnas(cols, enc) {
+  const get = (nombres) => {
+    for (const n of nombres) {
+      const idx = enc.findIndex(h => h.includes(n));
+      if (idx >= 0 && cols[idx] !== undefined) return String(cols[idx]).trim();
+    }
+    return '—';
+  };
+
+  const nombre   = get(['tipo de inmueble','tipo','type']);
+  const direccion= get(['direccion','dirección','address','dir']);
+  const precio   = get(['precio de venta','precio','price','valor']);
+  const tipo     = get(['tipo de inmueble','tipo']);
+  const hab      = get(['habitaciones','hab','rooms','cuartos']);
+  const banos    = get(['bano','baño','bath']);
+  const area     = get(['area privada','area','área','m2','metros']);
+  const ciudad   = get(['ciudad','city']);
+  const localidad= get(['localidad','barrio','neighborhood']);
+  const img1     = get(['imagen 1','image 1','foto 1','img1','imagen1']);
+  const img2     = get(['imagen 2','image 2','foto 2','img2','imagen2']);
+  const link     = get(['link','url','enlace','ciencuadras']);
+  const parq     = get(['parqueadero','parking','parq']);
+  const estrato  = get(['estrato']);
+  const admin    = get(['admin','administracion','administración']);
+
+  if (!nombre || nombre === '—') return null;
+
+  return {
+    name:     nombre,
+    loc:      `${ciudad !== '—' ? ciudad : ''} · ${localidad !== '—' ? localidad : direccion}`.replace(/^\s·\s/,''),
+    direccion: direccion,
+    price:    precio !== '—' ? `$ ${precio}` : '—',
+    badge:    tipo || 'INMUEBLE',
+    rooms:    hab,
+    baths:    banos !== '—' ? banos : '—',
+    area:     area,
+    parq:     parq,
+    estrato:  estrato,
+    admin:    admin,
+    img1:     img1,
+    img2:     img2,
+    link:     link,
+    icon:     detectarIcono(tipo)
+  };
+}
+
+function detectarIcono(tipo) {
+  const t = (tipo || '').toLowerCase();
+  if (t.includes('casa'))    return 'fa-house';
+  if (t.includes('apto') || t.includes('apartamento')) return 'fa-building';
+  if (t.includes('local') || t.includes('comercial'))  return 'fa-store';
+  if (t.includes('oficina')) return 'fa-briefcase';
+  if (t.includes('lote'))    return 'fa-map';
+  if (t.includes('finca') || t.includes('rural'))      return 'fa-tree';
+  if (t.includes('bodega'))  return 'fa-warehouse';
+  return 'fa-house';
+}
+
+// Paginación
+let PROPS_CARGADAS = [];
+let PAGINA_ACTUAL  = 1;
+const POR_PAGINA   = 9;
+
+function renderPropsPersonalizadas(props, nombreArchivo) {
+  const msg = document.getElementById('props-carga-msg');
+  if (!props.length) {
+    msg.style.color = 'var(--red)';
+    msg.textContent = '❌ No se encontraron propiedades.';
+    return;
+  }
+  PROPS_CARGADAS = props;
+  PAGINA_ACTUAL  = 1;
+  renderPagina();
+  msg.style.color = 'var(--green)';
+  msg.textContent = `✅ ${props.length} inmueble${props.length>1?'s':''} cargado${props.length>1?'s':''} desde "${nombreArchivo}"`;
+}
+
+function renderPagina() {
+  const inicio = (PAGINA_ACTUAL - 1) * POR_PAGINA;
+  const fin    = inicio + POR_PAGINA;
+  const pagina = PROPS_CARGADAS.slice(inicio, fin);
+  const totalPags = Math.ceil(PROPS_CARGADAS.length / POR_PAGINA);
+  const grid = document.getElementById('props-grid');
+
+  grid.innerHTML = pagina.map(p => {
+    const imgHtml = p.img1 && p.img1.startsWith('http')
+      ? `<img src="${p.img1}" alt="${p.name}" style="width:100%;height:100%;object-fit:cover;" onerror="this.style.display='none';this.nextElementSibling.style.display='flex'"/>
+         <i class="fa-solid ${p.icon} prop-img-ic" style="display:none"></i>`
+      : `<i class="fa-solid ${p.icon} prop-img-ic"></i>`;
+
+    const linkBtn = p.link && p.link.startsWith('http')
+      ? `<a href="${p.link}" target="_blank" class="pbtn pbtn-sec" style="text-align:center;text-decoration:none;display:flex;align-items:center;justify-content:center;gap:4px;"><i class="fa-solid fa-external-link-alt" style="font-size:10px"></i> Ver ficha</a>`
+      : '';
+
+    const extras = [
+      p.estrato && p.estrato !== '—' ? `<span class="prop-feat"><i class="fa-solid fa-star"></i>Estrato ${p.estrato}</span>` : '',
+      p.parq && p.parq !== '—' && p.parq !== '0' ? `<span class="prop-feat"><i class="fa-solid fa-car"></i>${p.parq} parq.</span>` : '',
+      p.admin && p.admin !== '—' && p.admin !== '0' ? `<span class="prop-feat"><i class="fa-solid fa-building"></i>Adm: $${p.admin}</span>` : '',
+    ].filter(Boolean).join('');
+
+    return `
+    <div class="prop-card">
+      <div class="prop-img" style="overflow:hidden;">${imgHtml}<span class="prop-badge">${p.badge.toUpperCase()}</span></div>
+      <div class="prop-body">
+        <div class="prop-name">${p.name}</div>
+        <div class="prop-loc"><i class="fa-solid fa-location-dot" style="font-size:10px"></i>${p.loc}</div>
+        <div class="prop-price">${p.price}</div>
+        <div class="prop-feats">
+          ${p.rooms !== '—' ? `<span class="prop-feat"><i class="fa-solid fa-bed"></i>${p.rooms} hab.</span>` : ''}
+          ${p.baths !== '—' ? `<span class="prop-feat"><i class="fa-solid fa-shower"></i>${p.baths} baños</span>` : ''}
+          ${p.area  !== '—' ? `<span class="prop-feat"><i class="fa-solid fa-ruler-combined"></i>${p.area} m²</span>` : ''}
+          ${extras}
+        </div>
+        <div class="prop-acts">
+          <button class="pbtn pbtn-main" onclick="openModal('Solicitar visita','Agenda tu visita. Te contactamos en menos de 2h.')">Solicitar visita</button>
+          ${linkBtn}
+        </div>
+      </div>
+    </div>`;
+  }).join('');
+
+  // Paginación
+  if (totalPags > 1) {
+    const nav = document.createElement('div');
+    nav.style.cssText = 'display:flex;align-items:center;justify-content:center;gap:8px;margin-top:16px;flex-wrap:wrap;';
+    nav.innerHTML = `
+      <button onclick="cambiarPagina(${PAGINA_ACTUAL-1})" ${PAGINA_ACTUAL===1?'disabled':''} style="padding:6px 12px;border-radius:6px;border:1.5px solid var(--border2);background:var(--bg2);color:var(--text2);cursor:pointer;font-size:12px;">← Ant.</button>
+      <span style="font-size:12px;color:var(--text2);">Página <strong>${PAGINA_ACTUAL}</strong> de <strong>${totalPags}</strong> · ${PROPS_CARGADAS.length} inmuebles</span>
+      <button onclick="cambiarPagina(${PAGINA_ACTUAL+1})" ${PAGINA_ACTUAL===totalPags?'disabled':''} style="padding:6px 12px;border-radius:6px;border:1.5px solid var(--border2);background:var(--bg2);color:var(--text2);cursor:pointer;font-size:12px;">Sig. →</button>`;
+    grid.appendChild(nav);
+  }
+}
+
+function cambiarPagina(n) {
+  const total = Math.ceil(PROPS_CARGADAS.length / POR_PAGINA);
+  if (n < 1 || n > total) return;
+  PAGINA_ACTUAL = n;
+  renderPagina();
+  document.getElementById('v-props').scrollIntoView({ behavior: 'smooth' });
+}
+</script>

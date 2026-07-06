@@ -305,6 +305,9 @@ html,body{background:var(--bg);font-family:'Inter',sans-serif;color:var(--text);
 .cta-gold{width:100%;padding:11px;border-radius:8px;border:none;background:var(--navy);color:#fff;font-family:'Inter',sans-serif;font-size:13px;font-weight:600;cursor:pointer;margin-top:9px;transition:all .2s;}
 .cta-gold:hover{background:var(--navy-h);}
 
+/* ── Modal contraseña agente ── */
+#modal-clave-ov{position:fixed;inset:0;background:rgba(15,23,42,.6);display:flex;align-items:center;justify-content:center;z-index:500;backdrop-filter:blur(3px);}
+#modal-clave-box{background:var(--bg2);border-radius:14px;padding:28px 24px;width:90%;max-width:340px;box-shadow:0 8px 32px rgba(30,64,175,.18);text-align:center;}
 #toast{position:fixed;bottom:18px;left:50%;transform:translateX(-50%) translateY(70px);padding:10px 18px;border-radius:8px;font-size:12px;font-weight:500;z-index:300;transition:transform .28s cubic-bezier(.34,1.56,.64,1);white-space:nowrap;color:#fff;pointer-events:none;box-shadow:0 4px 16px rgba(30,64,175,.18);}
 .hidden{display:none!important;}
 </style>
@@ -321,7 +324,7 @@ html,body{background:var(--bg);font-family:'Inter',sans-serif;color:var(--text);
     <div class="nav-tabs">
       <button class="nav-tab active" onclick="showView('v-lead',this)"><i class="fa-solid fa-house"></i> Inicio</button>
       <button class="nav-tab" onclick="showView('v-props',this)"><i class="fa-solid fa-building"></i> Propiedades</button>
-      <button class="nav-tab" onclick="showView('v-dash',this)"><i class="fa-solid fa-chart-line"></i> Agente <span class="badge" id="nav-badge">0</span></button>
+      <button class="nav-tab" onclick="accederAgente(this)"><i class="fa-solid fa-chart-line"></i> Agente <span class="badge" id="nav-badge">0</span></button>
     </div>
   </div>
   <div class="brand-rule"></div>
@@ -518,7 +521,7 @@ html,body{background:var(--bg);font-family:'Inter',sans-serif;color:var(--text);
     </div>
 
     <div class="agent-pill-wrap">
-      <button class="agent-pill" onclick="showView('v-dash', document.querySelectorAll('.nav-tab')[2])">
+      <button class="agent-pill" onclick="accederAgente(document.querySelectorAll('.nav-tab')[2])">
         <i class="fa-solid fa-chart-line"></i> Ver Panel del Agente
         <span style="background:var(--navy);color:#fff;font-size:9px;padding:1px 6px;border-radius:7px;font-weight:700;" id="pill-badge">0</span>
       </button>
@@ -578,6 +581,32 @@ html,body{background:var(--bg);font-family:'Inter',sans-serif;color:var(--text);
     <div class="leads-list" id="leads-list"><div class="empty-state"><i class="fa-solid fa-user-magnifying-glass"></i>Completa el formulario para ver leads aquí en tiempo real.</div></div>
   </div>
 </div>
+</div>
+
+
+<!-- MODAL CONTRASEÑA AGENTE -->
+<div id="modal-clave-ov" style="display:none;" onclick="cerrarModalClave(event)">
+  <div id="modal-clave-box">
+    <div style="width:52px;height:52px;border-radius:50%;background:var(--navy-lt);border:2px solid var(--navy-bd);display:flex;align-items:center;justify-content:center;margin:0 auto 14px;">
+      <i class="fa-solid fa-lock" style="font-size:22px;color:var(--navy);"></i>
+    </div>
+    <div style="font-family:'Playfair Display',serif;font-size:17px;color:var(--text);font-weight:600;margin-bottom:6px;">Acceso del Agente</div>
+    <div style="font-size:12px;color:var(--text3);margin-bottom:16px;">Ingresa tu contraseña para continuar</div>
+    <input id="input-clave" type="password" placeholder="Contraseña"
+      style="width:100%;padding:11px 14px;border-radius:8px;border:1.5px solid var(--border2);background:var(--bg3);color:var(--text);font-family:Inter,sans-serif;font-size:14px;outline:none;text-align:center;letter-spacing:3px;margin-bottom:8px;"
+      onkeydown="if(event.key==='Enter')verificarClave()"
+      onfocus="this.style.borderColor='var(--navy)'"
+      onblur="this.style.borderColor='var(--border2)'"/>
+    <div id="clave-error" style="font-size:11px;color:var(--red);margin-bottom:8px;display:none;">
+      <i class="fa-solid fa-circle-exclamation"></i> Contraseña incorrecta
+    </div>
+    <button onclick="verificarClave()" style="width:100%;padding:11px;border-radius:8px;border:none;background:var(--navy);color:#fff;font-family:Inter,sans-serif;font-size:13px;font-weight:600;cursor:pointer;margin-bottom:8px;">
+      <i class="fa-solid fa-unlock"></i> Ingresar
+    </button>
+    <button onclick="cerrarModalClave(null)" style="width:100%;padding:9px;border-radius:8px;border:1.5px solid var(--border2);background:transparent;color:var(--text3);font-family:Inter,sans-serif;font-size:12px;cursor:pointer;">
+      Cancelar
+    </button>
+  </div>
 </div>
 
 <div id="modal" class="modal-ov hidden" onclick="closeModal(event)">
@@ -673,6 +702,60 @@ function renderProps(){
         </div>
       </div>
     </div>`).join('');
+}
+
+
+/* ══════════════════════════════════════════════════════
+   SEGURIDAD — ACCESO AL PANEL DEL AGENTE
+   Cambia la contraseña en la variable de abajo.
+   Solo tú debes conocerla.
+══════════════════════════════════════════════════════ */
+
+// ─── CONTRASEÑA DEL AGENTE ────────────────────────────
+// Cambia "seguras2024" por tu contraseña personal
+const CLAVE_AGENTE = "seguras5274";
+
+let _btnAgente = null;  // guarda referencia al botón que hizo clic
+let _sesionActiva = false; // sesión activa mientras la pestaña esté abierta
+
+function accederAgente(btn) {
+  // Si ya autenticó en esta sesión, accede directo
+  if (_sesionActiva) {
+    showView('v-dash', btn || document.querySelectorAll('.nav-tab')[2]);
+    return;
+  }
+  _btnAgente = btn;
+  document.getElementById('input-clave').value = '';
+  document.getElementById('clave-error').style.display = 'none';
+  document.getElementById('modal-clave-ov').style.display = 'flex';
+  setTimeout(() => document.getElementById('input-clave').focus(), 100);
+}
+
+function verificarClave() {
+  const ingresada = document.getElementById('input-clave').value;
+  if (ingresada === CLAVE_AGENTE) {
+    _sesionActiva = true;
+    document.getElementById('modal-clave-ov').style.display = 'none';
+    document.getElementById('clave-error').style.display = 'none';
+    showView('v-dash', _btnAgente || document.querySelectorAll('.nav-tab')[2]);
+    showToast('✅ Bienvenido, Agente', '#16A34A');
+  } else {
+    document.getElementById('clave-error').style.display = 'block';
+    document.getElementById('input-clave').value = '';
+    document.getElementById('input-clave').focus();
+    // Efecto de shake
+    const box = document.getElementById('modal-clave-box');
+    box.style.animation = 'none';
+    box.style.transform = 'translateX(-8px)';
+    setTimeout(() => { box.style.transform = 'translateX(8px)'; }, 80);
+    setTimeout(() => { box.style.transform = 'translateX(0)'; }, 160);
+  }
+}
+
+function cerrarModalClave(e) {
+  if (e === null || e.target === document.getElementById('modal-clave-ov')) {
+    document.getElementById('modal-clave-ov').style.display = 'none';
+  }
 }
 
 function showView(id, btn){

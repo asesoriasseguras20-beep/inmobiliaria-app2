@@ -712,7 +712,7 @@ function renderProps(){
 ══════════════════════════════════════════════════════ */
 
 // ─── CONTRASEÑA DEL AGENTE ────────────────────────────
-// Cambia "seguras2024" por tu contraseña personal
+// Cambia "seguras5274" por tu contraseña personal
 const CLAVE_AGENTE = "seguras5274";
 
 let _btnAgente = null;  // guarda referencia al botón que hizo clic
@@ -763,6 +763,47 @@ function showView(id, btn){
   document.getElementById(id).classList.add('active');
   document.querySelectorAll('.nav-tab').forEach(t=>t.classList.remove('active'));
   if(btn) btn.classList.add('active');
+  // Al abrir el dashboard re-renderizar todos los leads acumulados
+  if(id === 'v-dash') renderDashboard();
+}
+
+function renderDashboard(){
+  const el = document.getElementById('leads-list');
+  if(!el) return;
+  if(leads.length === 0){
+    el.innerHTML = '<div class="empty-state"><i class="fa-solid fa-user-magnifying-glass"></i>Completa el formulario para ver leads aqui en tiempo real.</div>';
+    updStats(); try{ refreshSel(); }catch(e){} return;
+  }
+  el.innerHTML = '';
+  leads.forEach(function(data){
+    var st = data.status || 'new';
+    var lb = {new:'Nuevo', warm:'Tibio', hot:'Caliente'};
+    var ini = (data.name||'??').split(' ').map(function(w){return w[0]||'';}).join('').toUpperCase().slice(0,2)||'??';
+    var div = document.createElement('div');
+    div.className = 'lead-card';
+    div.innerHTML =
+      '<div class="lead-top">' +
+        '<div class="lead-av">'+ini+'</div>' +
+        '<div class="lead-info">' +
+          '<div class="lead-name">'+( data.name||'—')+(data.source?'<span class="lead-source">'+data.source+'</span>':'')+'</div>' +
+          '<div class="lead-meta"><i class="fa-solid fa-location-dot" style="font-size:10px"></i> '+(data.zone||'—')+' · '+(data.intent||'—')+'</div>' +
+        '</div>' +
+        '<div class="lead-right">' +
+          '<div class="lead-budget">'+((data.budget||'—').split('–')[0].trim())+'</div>' +
+          '<span class="lead-status s-'+st+'">'+(lb[st]||'Nuevo')+'</span>' +
+        '</div>' +
+      '</div>' +
+      '<div class="lead-act-row">' +
+        '<span class="lead-email-txt"><i class="fa-solid fa-envelope" style="font-size:10px"></i> '+(data.email||'—')+'</span>' +
+        '<div class="mini-btns">' +
+          (data.waUrl?'<a class="m-wa" href="'+data.waUrl+'" target="_blank"><i class="fa-brands fa-whatsapp"></i> WA</a>':'') +
+          (data.smsUrl?'<a class="m-sms" href="'+data.smsUrl+'" target="_blank"><i class="fa-solid fa-comment-sms"></i> SMS</a>':'') +
+        '</div>' +
+      '</div>';
+    el.appendChild(div);
+  });
+  updStats();
+  try{ refreshSel(); }catch(e){}
 }
 
 let curStep=1;
@@ -918,32 +959,42 @@ function addLead(data, waUrl, smsUrl){
   const st=statuses[Math.floor(Math.random()*3)];
   const lb={new:'Nuevo',warm:'Tibio',hot:'Caliente'};
   const ts=new Date();
+  // Guardar en el array global siempre
   leads.unshift({...data,status:st,statusLabel:lb[st],waUrl,smsUrl,ts});
+
+  // Actualizar el DOM del dashboard solo si el elemento existe y es visible
   const el=document.getElementById('leads-list');
-  if(leads.length===1) el.innerHTML='';
-  const ini=data.name.split(' ').map(w=>w[0]||'').join('').toUpperCase().slice(0,2)||'??';
-  const div=document.createElement('div'); div.className='lead-card nl';
-  div.innerHTML=`
-    <div class="lead-top">
-      <div class="lead-av">${ini}</div>
-      <div class="lead-info">
-        <div class="lead-name">${data.name}${data.source?`<span class="lead-source">${data.source}</span>`:''}</div>
-        <div class="lead-meta"><i class="fa-solid fa-location-dot" style="font-size:10px"></i> ${data.zone||'—'} · ${data.intent||'—'}</div>
+  if(el){
+    if(leads.length===1) el.innerHTML='';
+    const ini=(data.name||'??').split(' ').map(w=>w[0]||'').join('').toUpperCase().slice(0,2)||'??';
+    const div=document.createElement('div');
+    div.className='lead-card nl';
+    div.innerHTML=`
+      <div class="lead-top">
+        <div class="lead-av">${ini}</div>
+        <div class="lead-info">
+          <div class="lead-name">${data.name||'—'}${data.source?`<span class="lead-source">${data.source}</span>`:''}</div>
+          <div class="lead-meta"><i class="fa-solid fa-location-dot" style="font-size:10px"></i> ${data.zone||'—'} · ${data.intent||'—'}</div>
+        </div>
+        <div class="lead-right">
+          <div class="lead-budget">${(data.budget||'—').split('–')[0].trim()}</div>
+          <span class="lead-status s-${st}">${lb[st]}</span>
+        </div>
       </div>
-      <div class="lead-right">
-        <div class="lead-budget">${(data.budget||'—').split('–')[0].trim()}</div>
-        <span class="lead-status s-${st}">${lb[st]}</span>
-      </div>
-    </div>
-    <div class="lead-act-row">
-      <span class="lead-email-txt"><i class="fa-solid fa-envelope" style="font-size:10px"></i> ${data.email||'—'}</span>
-      <div class="mini-btns">
-        ${waUrl?`<a class="m-wa" href="${waUrl}" target="_blank"><i class="fa-brands fa-whatsapp"></i> WA</a>`:''}
-        ${smsUrl?`<a class="m-sms" href="${smsUrl}" target="_blank"><i class="fa-solid fa-comment-sms"></i> SMS</a>`:''}
-      </div>
-    </div>`;
-  el.insertBefore(div, el.firstChild);
-  updStats(); refreshSel();
+      <div class="lead-act-row">
+        <span class="lead-email-txt"><i class="fa-solid fa-envelope" style="font-size:10px"></i> ${data.email||'—'}</span>
+        <div class="mini-btns">
+          ${waUrl?`<a class="m-wa" href="${waUrl}" target="_blank"><i class="fa-brands fa-whatsapp"></i> WA</a>`:''}
+          ${smsUrl?`<a class="m-sms" href="${smsUrl}" target="_blank"><i class="fa-solid fa-comment-sms"></i> SMS</a>`:''}
+        </div>
+      </div>`;
+    el.insertBefore(div, el.firstChild);
+  }
+
+  // Actualizar estadísticas y selector siempre
+  updStats();
+  try { refreshSel(); } catch(e){ /* selector aún no visible */ }
+
   // Guardar en Google Sheets si está configurado
   sendToSheets(data);
 }
@@ -1267,3 +1318,5 @@ function cambiarPagina(n) {
   document.getElementById('v-props').scrollIntoView({ behavior: 'smooth' });
 }
 </script>
+
+

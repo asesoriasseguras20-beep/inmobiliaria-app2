@@ -1,0 +1,15 @@
+# 
+version: 2
+updates:
+  # Protector para JavaScript / Node.js
+  - package-ecosystem: "npm"
+    directory: "/"
+    schedule:
+      interval: "daily"
+
+  # Protector para Python
+  - package-ecosystem: "pip"
+    directory: "/"
+    schedule:
+      interval: "daily"
+
